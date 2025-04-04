@@ -5874,31 +5874,35 @@ class Series(base.IndexOpsMixin, NDFrame):  # type: ignore[misc]
         self, other = self._align_for_op(other)
         return base.IndexOpsMixin._arith_method(self, other, op)
 
-    def _align_for_op(self, right, align_asobject: bool = False):
-        """align lhs and rhs Series"""
-        # TODO: Different from DataFrame._align_for_op, list, tuple and ndarray
-        # are not coerced here
-        # because Series has inconsistencies described in GH#13637
+    def _align_for_op(self, right, align_asobject=False, fill_value=np.nan):
         left = self
+        if not isinstance(right, Series):
+            return left, right
+        
+        if not (hasattr(left.index, "levels") or hasattr(right.index, "levels")):
+            if left.empty or right.empty:
+                return left.iloc[0:0], right.iloc[0:0]
+            return left.align(right, join='outer', fill_value=fill_value)
+        
+        if hasattr(left.index, "levels") and not hasattr(right.index, "levels"):
+            if left.empty or right.empty:
+                return left.iloc[0:0], right.iloc[0:0]
+            
+            first_level = left.index.get_level_values(0)
+            right_aligned = right.reindex(first_level, fill_value=fill_value)
+            return left, right_aligned
 
-        if isinstance(right, Series):
-            # avoid repeated alignment
-            if not left.index.equals(right.index):
-                if align_asobject:
-                    if left.dtype not in (object, np.bool_) or right.dtype not in (
-                        object,
-                        np.bool_,
-                    ):
-                        pass
-                        # GH#52538 no longer cast in these cases
-                    else:
-                        # to keep original value's dtype for bool ops
-                        left = left.astype(object)
-                        right = right.astype(object)
-
-                left, right = left.align(right)
-
-        return left, right
+        if hasattr(right.index, "levels") and not hasattr(left.index, "levels"):
+            if left.empty or right.empty:
+                return left.iloc[0:0], right.iloc[0:0]
+            
+            first_level = right.index.get_level_values(0)
+            left_aligned = left.reindex(first_level, fill_value=fill_value)
+            return left_aligned, right
+        
+        if left.empty or right.empty:
+            return left.iloc[0:0], right.iloc[0:0]
+        return left.align(right, join='outer', fill_value=fill_value)
 
     def _binop(self, other: Series, func, level=None, fill_value=None) -> Series:
         """
