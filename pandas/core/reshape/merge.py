@@ -1267,37 +1267,47 @@ class _MergeOperation:
         result.drop(columns=[col for col in result.columns if col.startswith('key_')],
                     inplace=True, errors='ignore')
 
+
+
         assert all(isinstance(x, (np.ndarray, Series, Index)) for x in self.left_join_keys)
 
         keys = zip(self.join_names, self.left_on, self.right_on)
         for i, (name, lname, rname) in enumerate(keys):
+        
             should_fill = _should_fill(lname, rname)
             if not should_fill:
+            
                 continue
 
             take_left = self.left_join_keys[i]
             take_right = self.right_join_keys[i]
 
             if take_left is None:
+            
                 lvals = result[name]._values
             elif left_indexer is None:
+            
                 lvals = take_left
             else:
+            
                 take_left = extract_array(take_left, extract_numpy=True)
                 lfill = na_value_for_dtype(take_left.dtype)
                 lvals = algos.take_nd(take_left, left_indexer, fill_value=lfill)
 
             if take_right is None:
+            
                 rvals = result[name]._values
             elif right_indexer is None:
+            
                 rvals = take_right
             else:
+            
                 taker = extract_array(take_right, extract_numpy=True)
                 rfill = na_value_for_dtype(taker.dtype)
                 rvals = algos.take_nd(taker, right_indexer, fill_value=rfill)
 
             if self.coalesce_keys:
-                # Lógica de "coalesce" (fundir chaves) - mantida como estava
+            
                 mask_left_missing = isna(lvals)
                 combined = lvals.copy()
                 combined[mask_left_missing] = rvals[mask_left_missing]
@@ -1309,22 +1319,27 @@ class _MergeOperation:
                         key_col, dtype=result_dtype, index=result.index
                     )
                 elif result._is_level_reference(name):
+                
                     if isinstance(result.index, MultiIndex):
+                    
                         key_col.name = name
                         result.index = result.index.set_levels(key_col, level=name)
                     else:
                         result.index = Index(key_col, name=name)
             else:
-                # Preservar ambas as chaves
                 left_name = lname
                 right_name = f"{rname}{self.suffixes[1]}" if rname != lname else f"{lname}{self.suffixes[1]}"
 
+
                 if isna(lvals).any() or isna(rvals).any():
+                
                     lvals = np.array(lvals, dtype=float)
                     rvals = np.array(rvals, dtype=float)
 
                 if left_name not in result.columns:
+                
                     if result._is_label_reference(left_name):
+                    
                         result[left_name] = result._constructor_sliced(
                             lvals, dtype=lvals.dtype, index=result.index
                         )
@@ -1332,21 +1347,21 @@ class _MergeOperation:
                         result[left_name] = lvals
 
                 if right_name not in result.columns:
+                
                     if result._is_label_reference(right_name):
+                    
                         result[right_name] = result._constructor_sliced(
                             rvals, dtype=rvals.dtype, index=result.index
                         )
                     else:
-                        # Inserir a coluna 'right_name' após a coluna 'left_name'
-                        # para manter a ordem esperada no teste.
+                    
                         try:
                             insert_pos = result.columns.get_loc(left_name) + 1
                             result.insert(insert_pos, right_name, rvals)
                         except KeyError:
-                            # Isso pode acontecer se 'left_name' não estiver diretamente em result.columns
-                            # o que pode ser um bug ou um cenário não esperado na lógica de merge.
-                            # Para simplificar a correção do teste, podemos adicionar no final se não encontrar.
+
                             result[right_name] = rvals
+
 
 
 
